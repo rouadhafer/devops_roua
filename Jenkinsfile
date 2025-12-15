@@ -45,12 +45,14 @@ pipeline {
             }
         }
 
-stage('Deploy to Kubernetes') {
-    echo 'Deploying to Kubernetes...'
-    withCredentials([file(credentialsId: 'kubeconfig-content', variable: 'KUBECONFIG')]) {
-        sh 'kubectl apply -f k8s-deployment.yaml'
-    }
-}
+        stage('Deploy to Kubernetes') {
+            steps {
+                echo 'Deploying to Kubernetes...'
+                withCredentials([file(credentialsId: 'kubeconfig-content', variable: 'KUBECONFIG')]) {
+                    sh 'kubectl apply -f k8s-deployment.yaml'
+                }
+            }
+        }
 
         stage('Verify Deployment') {
             steps {
@@ -58,7 +60,7 @@ stage('Deploy to Kubernetes') {
                 script {
                     sh """
                         export KUBECONFIG=~/.kube/config
-                        kubectl get pods -n devops || echo "Could not lis pods"
+                        kubectl get pods -n devops || echo "Could not list pods"
                         kubectl get svc -n devops || echo "Could not list services"
                         kubectl get deployments -n devops || echo "Could not list deployments"
                     """
@@ -69,10 +71,10 @@ stage('Deploy to Kubernetes') {
 
     post {
         success {
-            echo '? Pipeline completed successfully!'
+            echo '✅ Pipeline completed successfully!'
         }
         failure {
-            echo '? Pipeline failed!'
+            echo '❌ Pipeline failed!'
         }
     }
 }
