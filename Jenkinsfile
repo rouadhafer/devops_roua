@@ -4,6 +4,7 @@ pipeline {
     environment {
         DOCKER_IMAGE = 'rouadhafer/gestion_ue_student'
         DOCKER_TAG   = 'latest'
+        K8S_NAMESPACE = 'devops'
     }
 
     stages {
@@ -35,11 +36,17 @@ pipeline {
                     sh "docker build -t ${DOCKER_IMAGE}:${DOCKER_TAG} ."
 
                     echo 'Pushing Docker image...'
-                    withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
-                        sh """
-                            echo \$DOCKER_PASSWORD | docker login -u \$DOCKER_USERNAME --password-stdin
+                    withCredentials([
+                        usernamePassword(
+                            credentialsId: 'dockerhub-credentials',
+                            usernameVariable: 'DOCKER_USERNAME',
+                            passwordVariable: 'DOCKER_PASSWORD'
+                        )
+                    ]) {
+                        sh '''
+                            echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
                             docker push ${DOCKER_IMAGE}:${DOCKER_TAG}
-                        """
+                        '''
                     }
                 }
             }
@@ -48,33 +55,29 @@ pipeline {
         stage('Deploy to Kubernetes') {
             steps {
                 echo 'Deploying to Kubernetes...'
-                script {
-                    // Use kubeconfig as a Secret File in Jenkins
-                    // Add your kubeconfig file as "Secret File" with ID 'kubeconfig-file'
-                    withCredentials([file(credentialsId: 'kubeconfig-file', variable: 'KUBECONFIG')]) {
-                        sh """
-                            set -e  # Exit on error
+                withCredentials([
+                    file(credentialsId: 'kubeconfig-file', variable: 'KUBECONFIG')
+                ]) {
+                    sh '''
+                        set -e
 
-                            echo "Using kubeconfig file: \$KUBECONFIG"
-                            kubectl config view --minify
-                            kubectl cluster-info
+                        echo "Using kubeconfig: $KUBECONFIG"
+                        kubectl cluster-info
 
-                            # Create namespace if it doesn't exist
-                            if ! kubectl get namespace devops >/dev/null 2>&1; then
-                                echo "Creating namespace 'devops'..."
-                                kubectl create namespace devops
-                            fi
+                        # Namespace
+                        kubectl get namespace ${K8S_NAMESPACE} >/dev/null 2>&1 || \
+                          kubectl create namespace ${K8S_NAMESPACE}
 
-                            echo "Applying MySQL deployment..."
-                            kubectl apply -f kubernetes/mysql-deployment.yaml -n devops
+                        echo "Applying MySQL resources..."
+                        kubectl apply -f kubernetes/mysql-deployment.yaml -n ${K8S_NAMESPACE}
 
-                            echo "Applying Spring app deployment..."
-                            kubectl apply -f kubernetes/spring-deployment.yaml -n devops
+                        echo "Applying Spring Boot resources..."
+                        kubectl apply -f kubernetes/spring-deployment.yaml -n ${K8S_NAMESPACE}
 
-                            echo "Restarting Spring app deployment..."
-                            kubectl rollout restart deployment spring-app -n devops || echo "Deployment may be newly created"
-                        """
-                    }
+                        echo "Waiting for deployments to be ready..."
+                        kubectl rollout status deployment/mysql -n ${K8S_NAMESPACE} --timeout=180s
+                        kubectl rollout status deployment/springboot-deployment -n ${K8S_NAMESPACE} --timeout=180s
+                    '''
                 }
             }
         }
@@ -82,14 +85,14 @@ pipeline {
         stage('Verify Deployment') {
             steps {
                 echo 'Verifying deployment...'
-                script {
-                    withCredentials([file(credentialsId: 'kubeconfig-file', variable: 'KUBECONFIG')]) {
-                        sh """
-                            kubectl get pods -n devops || echo "Could not list pods"
-                            kubectl get svc -n devops || echo "Could not list services"
-                            kubectl get deployments -n devops || echo "Could not list deployments"
-                        """
-                    }
+                withCredentials([
+                    file(credentialsId: 'kubeconfig-file', variable: 'KUBECONFIG')
+                ]) {
+                    sh '''
+                        kubectl get pods -n ${K8S_NAMESPACE}
+                        kubectl get svc -n ${K8S_NAMESPACE}
+                        kubectl get deployments -n ${K8S_NAMESPACE}
+                    '''
                 }
             }
         }
