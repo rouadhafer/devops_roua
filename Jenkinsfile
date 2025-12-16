@@ -46,51 +46,50 @@ pipeline {
         }
 
         stage('Deploy to Kubernetes') {
-    steps {
-        echo 'Deploying to Kubernetes...'
-        script {
-            // Use kubeconfig as a Secret File in Jenkins
-            // Add your kubeconfig file as "Secret File" with ID 'kubeconfig-file'
-            withCredentials([file(credentialsId: 'kubeconfig-file', variable: 'KUBECONFIG')]) {
-                sh """
-                    set -e  # Exit immediately if any command fails
+            steps {
+                echo 'Deploying to Kubernetes...'
+                script {
+                    // Use kubeconfig as a Secret File in Jenkins
+                    // Add your kubeconfig file as "Secret File" with ID 'kubeconfig-file'
+                    withCredentials([file(credentialsId: 'kubeconfig-file', variable: 'KUBECONFIG')]) {
+                        sh """
+                            set -e  # Exit immediately if any command fails
 
-                    echo "Kubeconfig file path: \$KUBECONFIG"
-                    kubectl config view --minify
-                    kubectl cluster-info
+                            echo "Kubeconfig file path: \$KUBECONFIG"
+                            kubectl config view --minify
+                            kubectl cluster-info
 
-                    # Create namespace if it doesn't exist
-                    if ! kubectl get namespace devops >/dev/null 2>&1; then
-                        echo "Creating namespace 'devops'..."
-                        kubectl create namespace devops
-                    fi
+                            # Create namespace if it doesn't exist
+                            if ! kubectl get namespace devops >/dev/null 2>&1; then
+                                echo "Creating namespace 'devops'..."
+                                kubectl create namespace devops
+                            fi
 
-                    echo "Applying MySQL deployment..."
-                    kubectl apply -f kubernetes/mysql-deployment.yaml -n devops
+                            echo "Applying MySQL deployment..."
+                            kubectl apply -f kubernetes/mysql-deployment.yaml -n devops
 
-                    echo "Applying Spring app deployment..."
-                    kubectl apply -f kubernetes/spring-deployment.yaml -n devops
+                            echo "Applying Spring app deployment..."
+                            kubectl apply -f kubernetes/spring-deployment.yaml -n devops
 
-                    echo "Restarting Spring app deployment..."
-                    kubectl rollout restart deployment spring-app -n devops || echo "Deployment may be newly created"
-                """
+                            echo "Restarting Spring app deployment..."
+                            kubectl rollout restart deployment spring-app -n devops || echo "Deployment may be newly created"
+                        """
+                    }
+                }
             }
         }
-    }
-}
-
-
 
         stage('Verify Deployment') {
             steps {
                 echo 'Verifying deployment...'
                 script {
-                    sh """
-                        export KUBECONFIG=~/.kube/config
-                        kubectl get pods -n devops || echo "Could not list pods"
-                        kubectl get svc -n devops || echo "Could not list services"
-                        kubectl get deployments -n devops || echo "Could not list deployments"
-                    """
+                    withCredentials([file(credentialsId: 'kubeconfig-file', variable: 'KUBECONFIG')]) {
+                        sh """
+                            kubectl get pods -n devops || echo "Could not list pods"
+                            kubectl get svc -n devops || echo "Could not list services"
+                            kubectl get deployments -n devops || echo "Could not list deployments"
+                        """
+                    }
                 }
             }
         }
