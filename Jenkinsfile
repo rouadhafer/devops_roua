@@ -16,7 +16,7 @@ pipeline {
 
         stage('Clean & Compile') {
             steps {
-                echo 'Nettoyage et compilation du projet'
+                echo 'Nettoyage et compilation du projet...'
                 sh 'mvn clean compile'
             }
         }
@@ -53,9 +53,9 @@ pipeline {
                     // Add your kubeconfig file as "Secret File" with ID 'kubeconfig-file'
                     withCredentials([file(credentialsId: 'kubeconfig-file', variable: 'KUBECONFIG')]) {
                         sh """
-                            set -e  # Exit immediately if any command fails
+                            set -e  # Exit on error
 
-                            echo "Kubeconfig file path: \$KUBECONFIG"
+                            echo "Using kubeconfig file: \$KUBECONFIG"
                             kubectl config view --minify
                             kubectl cluster-info
 
