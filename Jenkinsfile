@@ -52,7 +52,7 @@ pipeline {
             }
         }
 
-        stage('Deploy to Kubernetes') {
+       /* stage('Deploy to Kubernetes') {
             steps {
                 echo 'Deploying to Kubernetes...'
                 withCredentials([
@@ -80,7 +80,7 @@ pipeline {
                     '''
                 }
             }
-        }
+        }*/
 
         stage('Verify Deployment') {
             steps {
